@@ -3,15 +3,30 @@ import { CircleArrowOutUpLeft, FileText } from 'lucide-vue-next'
 import { ref } from 'vue'
 
 const uploadedFiles = ref({})
+const fileErrors = ref({})
+const uploadProgress = ref({})
+const model = defineModel({ default: () => ({}) })
+
+const acceptedTypes = ['application/pdf', 'image/jpeg']
+
+function setProgress(doc) {
+  uploadProgress.value[doc] = 20
+
+  const timer = window.setInterval(() => {
+    uploadProgress.value[doc] = Math.min((uploadProgress.value[doc] || 0) + 20, 100)
+    if (uploadProgress.value[doc] === 100) window.clearInterval(timer)
+  }, 140)
+}
 
 const handleFileUpload = (file, doc) => {
   if (!file) return
 
   // Validate file type
-  if (!(file.type === 'application/pdf' || file.type === 'image/jpeg')) {
-    alert('Only JPG and PDF files are allowed.')
+  if (!acceptedTypes.includes(file.type)) {
+    fileErrors.value[doc] = 'Only JPG and PDF files are allowed.'
     return
   }
+  fileErrors.value[doc] = ''
 
   // Save file object with preview or direct link
   uploadedFiles.value[doc] = {
@@ -20,6 +35,8 @@ const handleFileUpload = (file, doc) => {
     pdfUrl: file.type === 'application/pdf' ? URL.createObjectURL(file) : null,
     isPdf: file.type === 'application/pdf'
   }
+  model.value[doc] = file.name
+  setProgress(doc)
 }
 
 const handleDrop = (event, doc) => {
@@ -93,7 +110,12 @@ const handleDragOver = (event) => {
           {{ uploadedFiles[doc].file.name }}
         </p>
 
+        <div v-if="uploadProgress[doc]" class="mt-3 h-1.5 w-40 overflow-hidden rounded-full bg-[#A2A1A833]">
+          <div class="h-full rounded-full bg-[#7152F3] transition-all" :style="{ width: `${uploadProgress[doc]}%` }" />
+        </div>
+
         <p class="text-xs">Supported formats: .jpg, .pdf</p>
+        <p v-if="fileErrors[doc]" class="mt-2 text-xs text-red-500">{{ fileErrors[doc] }}</p>
       </div>
     </div>
   </div>

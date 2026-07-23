@@ -1,50 +1,52 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
-import Image1 from '@/assets/img/image1.png'
-import Image2 from '@/assets/img/image2.png'
-import Image3 from '@/assets/img/image3.png'
-import Image4 from '@/assets/img/image4.png'
-import Image5 from '@/assets/img/image5.png'
-import TablePagination from '@/components/TablePagination.vue'   // ← NEW
-
-const candidates = [
-  { name: "Leasie Watson",     image: Image1, appliedFor: "UI/UX Designer",    appliedDate: "July 14, 2023", email: "leasie.w@demo.com",          number: "(629) 555-0129", status: "Selected",    statusColor: "#3FC28A" },
-  { name: "Darlene Robertson", image: Image2, appliedFor: "Sales Manager",     appliedDate: "July 14, 2023", email: "agujudeifeanyi@gmail.com",   number: "(629) 555-0129", status: "Selected",    statusColor: "#3FC28A" },
-  { name: "Leslie Alexander",  image: Image3, appliedFor: "Sr. UX Designer",   appliedDate: "July 14, 2023", email: "leasie.w@demo.com",          number: "(629) 555-0129", status: "Selected",    statusColor: "#3FC28A" },
-  { name: "Leasie Watson",     image: Image4, appliedFor: "Sr. Python Dev",    appliedDate: "July 14, 2023", email: "leasie.w@demo.com",          number: "(629) 555-0129", status: "In Progress", statusColor: "#EFBE12" },
-  { name: "Jacob Jones",       image: Image1, appliedFor: "BDE",               appliedDate: "July 14, 2023", email: "leasie.w@demo.com",          number: "(629) 555-0129", status: "In Progress", statusColor: "#EFBE12" },
-  { name: "Ronald Richards",   image: Image5, appliedFor: "HR Executive",      appliedDate: "July 14, 2023", email: "leasie.w@demo.com",          number: "(629) 555-0129", status: "Rejected",    statusColor: "#F45B69" },
-  { name: "Leasie Watson",     image: Image1, appliedFor: "Project Manager",   appliedDate: "July 14, 2023", email: "leasie.w@demo.com",          number: "(629) 555-0129", status: "Rejected",    statusColor: "#F45B69" },
-  { name: "Darlene Robertson", image: Image2, appliedFor: "Business Analyst",  appliedDate: "July 14, 2023", email: "leasie.w@demo.com",          number: "(629) 555-0129", status: "Selected",    statusColor: "#3FC28A" },
-  { name: "Leslie Alexander",  image: Image3, appliedFor: "Sr. UI/UX Lead",    appliedDate: "July 14, 2023", email: "leasie.w@demo.com",          number: "(629) 555-0129", status: "Selected",    statusColor: "#3FC28A" },
-  { name: "Leasie Watson",     image: Image4, appliedFor: "BDM",               appliedDate: "July 14, 2023", email: "leasie.w@demo.com",          number: "(629) 555-0129", status: "In Progress", statusColor: "#EFBE12" },
-  { name: "Jacob Jones",       image: Image1, appliedFor: "IOS Developer",     appliedDate: "July 14, 2023", email: "leasie.w@demo.com",          number: "(629) 555-0129", status: "Rejected",    statusColor: "#F45B69" },
-  { name: "Ronald Richards",   image: Image5, appliedFor: "Delivery Head",     appliedDate: "July 14, 2023", email: "leasie.w@demo.com",          number: "(629) 555-0129", status: "Selected",    statusColor: "#3FC28A" },
-]
+import { computed, onMounted, ref, watch } from 'vue'
+import TablePagination from '@/components/TablePagination.vue'
+import RequestState from '@/components/RequestState.vue'
+import AppToast from '@/components/AppToast.vue'
+import { useCandidatesStore } from '@/stores/candidatesStore'
 
 const perPage            = ref(10)
 const currentPage        = ref(1)
 const selectedCandidates = ref([])
 const selectAll          = ref(false)
+const candidatesStore = useCandidatesStore()
+const statuses = ['Selected', 'In Progress', 'Rejected']
 
-const totalPages = computed(() => Math.ceil(candidates.length / perPage.value))
-
-const paginatedCandidates = computed(() => {
-  const start = (currentPage.value - 1) * perPage.value
-  return candidates.slice(start, start + perPage.value)
+const props = defineProps({
+  search: { type: String, default: '' },
 })
+
+const totalPages = computed(() => candidatesStore.meta.totalPages)
+const paginatedCandidates = computed(() => candidatesStore.items)
+const totalItems = computed(() => candidatesStore.meta.total)
+
+function fetchCandidates() {
+  candidatesStore.fetchAll({
+    search: props.search,
+    page: currentPage.value,
+    limit: perPage.value,
+  }).catch(() => {})
+}
+
+async function updateCandidateStatus(candidate, status) {
+  await candidatesStore.updateStatus(candidate.id, status).catch(() => {})
+}
 
 // Keep selectAll in sync when page or perPage changes
 watch([currentPage, perPage], () => {
-  selectAll.value = paginatedCandidates.value.every(c =>
-    selectedCandidates.value.some(s => s.name === c.name)
-  )
+  fetchCandidates()
+  selectAll.value = false
 })
 
-const isSelected = (c) => selectedCandidates.value.some(s => s.name === c.name)
+watch(() => props.search, () => {
+  currentPage.value = 1
+  fetchCandidates()
+})
+
+const isSelected = (c) => selectedCandidates.value.some(s => s.id === c.id)
 
 const toggleOne = (candidate) => {
-  const idx = selectedCandidates.value.findIndex(c => c.name === candidate.name)
+  const idx = selectedCandidates.value.findIndex(c => c.id === candidate.id)
   idx > -1
     ? selectedCandidates.value.splice(idx, 1)
     : selectedCandidates.value.push(candidate)
@@ -63,11 +65,20 @@ const toggleAll = () => {
   }
   selectAll.value = !selectAll.value
 }
+
+onMounted(fetchCandidates)
 </script>
 
 <template>
   <div class="space-y-4">
 
+    <RequestState
+      :loading="candidatesStore.loading"
+      :error="candidatesStore.error && !candidatesStore.saving ? candidatesStore.error : ''"
+      :empty="paginatedCandidates.length === 0"
+      empty-text="No candidates found."
+      @retry="fetchCandidates"
+    >
     <!-- DESKTOP TABLE -->
     <div class="overflow-x-auto">
       <div class="inline-block min-w-full">
@@ -104,10 +115,15 @@ const toggleAll = () => {
             <div class="col-span-3 px-2 font-light text-sm truncate min-w-[170px]">{{ candidate.email }}</div>
             <div class="col-span-2 px-2 font-light text-sm truncate min-w-[120px]">{{ candidate.number }}</div>
             <div class="col-span-1 px-2 min-w-[90px]">
-              <span
-                class="inline-flex items-center justify-center font-light text-xs px-3 py-1 rounded-lg whitespace-nowrap"
+              <select
+                :value="candidate.status"
+                class="rounded-lg border border-transparent px-2 py-1 text-xs font-light focus:border-[#7152F3] focus:outline-none"
                 :style="{ color: candidate.statusColor, backgroundColor: `${candidate.statusColor}1A` }"
-              >{{ candidate.status }}</span>
+                :disabled="candidatesStore.saving"
+                @change="updateCandidateStatus(candidate, $event.target.value)"
+              >
+                <option v-for="status in statuses" :key="status" :value="status">{{ status }}</option>
+              </select>
             </div>
           </div>
         </div>
@@ -129,10 +145,15 @@ const toggleAll = () => {
                   <p class="text-xs text-[#A2A1A8]">{{ candidate.appliedFor }}</p>
                 </div>
               </div>
-              <span
-                class="text-xs px-3 py-1 rounded-lg whitespace-nowrap"
+              <select
+                :value="candidate.status"
+                class="rounded-lg border border-transparent px-2 py-1 text-xs"
                 :style="{ color: candidate.statusColor, backgroundColor: `${candidate.statusColor}1A` }"
-              >{{ candidate.status }}</span>
+                :disabled="candidatesStore.saving"
+                @change="updateCandidateStatus(candidate, $event.target.value)"
+              >
+                <option v-for="status in statuses" :key="status" :value="status">{{ status }}</option>
+              </select>
             </div>
             <div class="mt-3 space-y-1 text-xs text-[#A2A1A8] pl-9">
               <p><span class="font-medium text-gray-500">Date:</span> {{ candidate.appliedDate }}</p>
@@ -155,7 +176,13 @@ const toggleAll = () => {
       v-model:currentPage="currentPage"
       v-model:perPage="perPage"
       :totalPages="totalPages"
-      :totalItems="candidates.length"
+      :totalItems="totalItems"
+    />
+    </RequestState>
+    <AppToast
+      :message="candidatesStore.success || candidatesStore.error"
+      :type="candidatesStore.error ? 'error' : 'success'"
+      @close="candidatesStore.clearMessages()"
     />
 
   </div>

@@ -4,8 +4,10 @@ import logo from '@/assets/img/logo.png'
 import DashboardImg from '@/components/DashboardImg.vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { EyeIcon, EyeSlashIcon } from '@heroicons/vue/24/outline'
+import { useAuthStore } from '@/stores/authStore'
 
 const router = useRouter()
+const auth = useAuthStore()
 
 const email = ref('')
 const password = ref('')
@@ -16,9 +18,10 @@ const showPassword = ref(false)
 const emailError = ref('')
 const passwordError = ref('')
 
-const handleLogin = () => {
+const handleLogin = async () => {
   emailError.value = ''
   passwordError.value = ''
+  auth.error = ''
 
   let isValid = true
 
@@ -37,12 +40,16 @@ const handleLogin = () => {
 
   if (!isValid) return
 
-  // Proceed with login
-  console.log('Email:', email.value)
-  console.log('Password:', password.value)
-  console.log('Remember me:', remember.value)
-
-  router.push('/')
+  try {
+    await auth.login({
+      email: email.value,
+      password: password.value,
+      remember: remember.value,
+    })
+    router.push('/')
+  } catch (error) {
+    passwordError.value = auth.error
+  }
 }
 </script>
 
@@ -126,10 +133,11 @@ const handleLogin = () => {
 
         <button
           type="submit"
+          :disabled="auth.loading"
           class="w-full bg-[#7152F3] hover:bg-[#5b41cc] text-white py-3 rounded-lg font-medium
-            cursor-pointer transition-colors ease-in-out duration-150"
+            cursor-pointer transition-colors ease-in-out duration-150 disabled:cursor-not-allowed disabled:opacity-70"
         >
-          Login
+          {{ auth.loading ? 'Logging in...' : 'Login' }}
         </button>
       </form>
     </section>

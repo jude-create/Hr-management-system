@@ -1,6 +1,6 @@
 <script setup>
 import { defineProps, defineEmits } from 'vue'
-import {BriefcaseBusiness, MapPin} from 'lucide-vue-next'
+import { BriefcaseBusiness, MapPin, Pencil, Trash2 } from 'lucide-vue-next'
 
 const props = defineProps({
   tasks: Array,
@@ -9,8 +9,7 @@ const props = defineProps({
   sectionKey: String
 })
 
-
-
+defineEmits(['edit', 'delete', 'status'])
 </script>
 
 <template>
@@ -35,9 +34,17 @@ const props = defineProps({
           <div class="bg-[#A2A1A81A] p-2.5 rounded-lg flex-shrink-0">
             <BriefcaseBusiness class="h-5 w-5 text-gray-500" />
           </div>
-          <div class="min-w-0">
+          <div class="min-w-0 flex-1">
             <p class="font-semibold text-sm leading-snug">{{ task.title }}</p>
             <p class="text-xs font-light text-[#A2A1A8] mt-0.5">{{ task.description }}</p>
+          </div>
+          <div class="flex items-center gap-1">
+            <button class="rounded p-1 hover:bg-[#7152F310]" title="Edit job" @click="$emit('edit', task)">
+              <Pencil class="h-4 w-4 text-[#7152F3]" />
+            </button>
+            <button class="rounded p-1 hover:bg-red-50" title="Delete job" @click="$emit('delete', task)">
+              <Trash2 class="h-4 w-4 text-red-500" />
+            </button>
           </div>
         </div>
 
@@ -62,6 +69,29 @@ const props = defineProps({
             <span class="font-semibold text-sm">{{ task.salary }}</span>
             <span class="text-xs text-[#A2A1A8]">/mo</span>
           </div>
+        </div>
+        <div class="mt-3 flex justify-end gap-2">
+          <button
+            v-if="task.status !== 'active'"
+            class="rounded-lg border border-[#7152F3] px-3 py-1.5 text-xs text-[#7152F3] hover:bg-[#7152F310]"
+            @click="$emit('status', { job: task, status: 'active' })"
+          >
+            Publish
+          </button>
+          <button
+            v-if="task.status === 'active'"
+            class="rounded-lg border border-[#D89E07] px-3 py-1.5 text-xs text-[#D89E07] hover:bg-[#D89E071A]"
+            @click="$emit('status', { job: task, status: 'inactive' })"
+          >
+            Unpublish
+          </button>
+          <button
+            v-if="task.status !== 'completed'"
+            class="rounded-lg border border-[#03A12F] px-3 py-1.5 text-xs text-[#03A12F] hover:bg-[#03A12F1A]"
+            @click="$emit('status', { job: task, status: 'completed' })"
+          >
+            Close
+          </button>
         </div>
       </div>
     </div>

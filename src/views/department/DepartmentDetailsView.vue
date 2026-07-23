@@ -1,14 +1,18 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, inject } from 'vue'
 import { useRoute } from 'vue-router'
-import departments from '@/data/departments'
 import { AdjustmentsHorizontalIcon, EyeIcon, PencilIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import { MagnifyingGlassIcon } from '@heroicons/vue/24/solid'
 import { ChevronLeftIcon, ChevronRightIcon, CirclePlus } from 'lucide-vue-next'
 import useTheme from '@/config/useTheme'
 import EmployeeFilter from '@/modals/EmployeeFilter.vue'
+import RequestState from '@/components/RequestState.vue'
+import { useDepartmentsStore } from '@/stores/departmentsStore'
 
 const { isDark } = useTheme()
+const route = useRoute()
+const departmentsStore = useDepartmentsStore()
+const departmentSlug = route.params.slug
 
 const taskModal = ref(false)
 function toggleModal() {
@@ -17,14 +21,13 @@ function toggleModal() {
 
 const setHeaderDepartment = inject('setHeaderDepartment');
 
-onMounted(() => setHeaderDepartment(department.value))
+onMounted(async () => {
+  await fetchDepartment()
+  setHeaderDepartment(department.value)
+})
 onUnmounted(() => setHeaderDepartment(null))
 
-const route = useRoute()
-const departmentSlug = route.params.slug
-const department = computed(() => {
-  return departments.find(dep => dep.slug === departmentSlug)
-})
+const department = computed(() => departmentsStore.selected)
 
 const search = ref('')
 
@@ -71,7 +74,9 @@ const visiblePages = computed(() => {
  
 })
 
- 
+function fetchDepartment() {
+  return departmentsStore.fetchDepartment(departmentSlug).catch(() => {})
+}
 </script>
 
 <template>
@@ -128,6 +133,13 @@ const visiblePages = computed(() => {
         </div>
 
 
+        <RequestState
+          :loading="departmentsStore.loading"
+          :error="departmentsStore.error"
+          :empty="filteredMembers.length === 0"
+          empty-text="No members found in this department."
+          @retry="fetchDepartment"
+        >
         <div class="pt-8 hidden md:block">
          
           <!-- Header -->
@@ -303,6 +315,7 @@ const visiblePages = computed(() => {
             </button>
           </div>
         </div>
+        </RequestState>
       </div>
     </main>
     <EmployeeFilter :visible="taskModal" @close="toggleModal" />

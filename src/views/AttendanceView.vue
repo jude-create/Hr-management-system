@@ -5,7 +5,8 @@ import Navbar from '@/components/Navbar.vue';
 import { MagnifyingGlassIcon } from '@heroicons/vue/24/solid';
 import { ref } from 'vue';
 
-
+const search = ref('')
+const date = ref('2026-07-23')
 </script>
 
 <template>
@@ -20,6 +21,7 @@ import { ref } from 'vue';
      <div class=" relative hidden md:block ">
         <MagnifyingGlassIcon class="h-6 w-6  absolute ml-2 mt-2" />
        <input
+       v-model="search"
        type="text"
         placeholder="Search..."
        class="pl-10 pr-2 px-2 py-2 w-80 bg-transparent placeholder:text-[#8A8D91] text-base border border-gray-300 rounded-lg 
@@ -27,11 +29,21 @@ import { ref } from 'vue';
       />
     </div>
      
+    <div class="mt-4 flex flex-wrap items-center gap-3">
+      <input
+        v-model="date"
+        type="date"
+        class="rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-sm focus:border-[#7152F3] focus:outline-none focus:ring-2 focus:ring-[#7152F3]"
+      />
+    </div>
+
     <div class="mt-8 mb-5">
        <Attendance 
         :show-pagination="true"
         :per-page="10"
         :limit="10"
+        :search="search"
+        :date="date"
        />
     </div>
       

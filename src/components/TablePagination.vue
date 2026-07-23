@@ -26,9 +26,10 @@ const visiblePages = computed(() => {
 })
 
 const showingRange = computed(() => {
+  if (!props.totalItems) return 'Showing 0 of 0'
   const start = (props.currentPage - 1) * props.perPage + 1
   const end   = Math.min(start + props.perPage - 1, props.totalItems)
-  return `Showing ${start}–${end} of ${props.totalItems}`
+  return `Showing ${start}-${end} of ${props.totalItems}`
 })
 
 const prev = () => { if (props.currentPage > 1) emit('update:currentPage', props.currentPage - 1) }

@@ -1,19 +1,35 @@
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router' // ✅ Import router
+import { useRouter } from 'vue-router'
 import DashboardImg from '@/components/DashboardImg.vue'
 import { ChevronLeftIcon } from '@heroicons/vue/24/solid'
+import { useAuthStore } from '@/stores/authStore'
 
 const email = ref('')
-const router = useRouter() // ✅ Setup router instance
+const emailError = ref('')
+const router = useRouter()
+const auth = useAuthStore()
 
-const handleLogin = () => {
-  console.log('Email:', email.value)
+const handleLogin = async () => {
+  emailError.value = ''
+  auth.error = ''
 
-  // TODO: Send OTP logic here (optional)
+  if (!email.value) {
+    emailError.value = 'Please input an email'
+    return
+  }
 
-  // ✅ Redirect to Enter OTP page
-  router.push('forgot-password/enter-otp')
+  if (!/^\S+@\S+\.\S+$/.test(email.value)) {
+    emailError.value = 'Please enter a valid email'
+    return
+  }
+
+  try {
+    await auth.forgotPassword(email.value)
+    router.push('/forgot-password/enter-otp')
+  } catch (error) {
+    emailError.value = auth.error
+  }
 }
 </script>
 
@@ -48,7 +64,8 @@ const handleLogin = () => {
             v-model="email"
             type="email"
             id="email"
-            class="peer w-full px-4 pt-5 pb-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7152F3] placeholder-transparent"
+            class="peer w-full px-4 pt-5 pb-2 border rounded-lg focus:outline-none focus:ring-2 placeholder-transparent"
+            :class="emailError ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-[#7152F3]'"
             placeholder="Email"
           />
           <label
@@ -57,16 +74,17 @@ const handleLogin = () => {
           >
             Email Address
           </label>
+          <p v-if="emailError" class="text-red-500 text-xs mt-1">{{ emailError }}</p>
         </div>
 
-        <!-- ✅ Send OTP Button -->
         <button
           type="submit"
+          :disabled="auth.loading"
           class="w-full bg-[#7152F3] hover:bg-[#5b41cc] text-white 
           py-3 rounded-lg font-medium mt-2  cursor-pointer 
-      transition-colors ease-in-out duration-150"
+      transition-colors ease-in-out duration-150 disabled:cursor-not-allowed disabled:opacity-70"
         >
-          Send OTP
+          {{ auth.loading ? 'Sending OTP...' : 'Send OTP' }}
         </button>
       </form>
     </section>

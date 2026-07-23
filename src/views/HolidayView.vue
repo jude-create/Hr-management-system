@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 import { MagnifyingGlassIcon, PlusIcon } from '@heroicons/vue/24/solid'
 import Header from '@/components/Header.vue'
@@ -8,27 +8,69 @@ import JobModal from '@/modals/JobModal.vue'
 import { CirclePlus } from 'lucide-vue-next'
 import HolidaySection from '@/components/HolidaySection.vue'
 import HolidayModal from '@/modals/HolidayModal.vue'
+import RequestState from '@/components/RequestState.vue'
+import AppToast from '@/components/AppToast.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import { useHolidaysStore } from '@/stores/holidaysStore'
 
 const taskModal = ref(false)
+const search = ref('')
+const holidaysStore = useHolidaysStore()
+const editingHoliday = ref(null)
+const holidayToDelete = ref(null)
 function toggleModal() {
   taskModal.value = !taskModal.value
 }
 
-const holidays = ref([
-  { id: 1, date: 'January 01, 2025', day: 'Tuesday', holiday: 'New Year' },
-  { id: 2, date: 'January 07, 2025', day: 'Saturday', holiday: 'International Programmers'},
-  { id: 3, date: 'February 04, 2025', day: 'Thursday', holiday: 'Independence Day' },
-  { id: 5, date: 'April 01, 2025', day: 'Saturday', holiday: 'April Fool Day' },
-  { id: 6, date: 'May 07, 2025', day: 'Thursday', holiday: 'International Programmers'},
-  { id: 7, date: 'May 22, 2025', day: 'Monday', holiday: 'International Day for Biological Diversity' },
-  { id: 8, date: 'August 27, 2025', day: 'Monday', holiday: 'International Friendship Day' },
-  { id: 9, date: 'September 15, 2025', day: 'Friday', holiday: 'International Day of Democracy' },
-  { id: 10, date: 'November 14, 2025', day: 'Thursday', holiday: 'World Diabetes Day' },
-  { id: 11, date: 'December 25, 2025', day: 'Tuesday', holiday: 'Merry Chrismas' },
-]);
+const holidays = computed(() => {
+  const query = search.value.trim().toLowerCase()
+  if (!query) return holidaysStore.items
 
+  return holidaysStore.items.filter((holiday) =>
+    holiday.holiday.toLowerCase().includes(query)
+      || holiday.date.toLowerCase().includes(query)
+      || holiday.day.toLowerCase().includes(query),
+  )
+})
 
+function fetchHolidays() {
+  holidaysStore.fetchAll().catch(() => {})
+}
 
+async function saveHoliday(payload) {
+  const request = payload.id
+    ? holidaysStore.update(payload.id, payload)
+    : holidaysStore.create(payload)
+
+  await request.catch(() => {})
+  if (!holidaysStore.error) {
+    taskModal.value = false
+    editingHoliday.value = null
+    fetchHolidays()
+  }
+}
+
+function openEditHoliday(holiday) {
+  editingHoliday.value = holiday
+  taskModal.value = true
+}
+
+function closeHolidayModal() {
+  taskModal.value = false
+  editingHoliday.value = null
+}
+
+async function deleteHoliday() {
+  if (!holidayToDelete.value) return
+
+  await holidaysStore.remove(holidayToDelete.value.id).catch(() => {})
+  if (!holidaysStore.error) {
+    holidayToDelete.value = null
+    fetchHolidays()
+  }
+}
+
+onMounted(fetchHolidays)
 </script>
 
 <template>
@@ -45,6 +87,7 @@ const holidays = ref([
        <div class=" relative hidden md:block ">
         <MagnifyingGlassIcon class="h-6 w-6  absolute ml-2 mt-2" />
        <input
+       v-model="search"
        type="text"
         placeholder="Search..."
        class="pl-10 pr-2 px-2 py-3 w-80 bg-transparent placeholder:text-[#8A8D91] text-base border border-gray-300 rounded-lg 
@@ -65,9 +108,19 @@ const holidays = ref([
     
      
      <div class=" w-full mt-3">
+      <RequestState
+        :loading="holidaysStore.loading"
+        :error="holidaysStore.error && !holidaysStore.saving ? holidaysStore.error : ''"
+        :empty="holidays.length === 0"
+        empty-text="No holidays match your current search."
+        @retry="fetchHolidays"
+      >
     <HolidaySection
     :holidays="holidays"
+    @edit="openEditHoliday"
+    @delete="holidayToDelete = $event"
     />
+      </RequestState>
     </div>
     
     <div class="flex items-center space-x-5 mt-6 mb-5">
@@ -81,7 +134,29 @@ const holidays = ref([
             <p class="font-semibold text-sm">Past Holidays</p>
         </div>
     </div>
-    <HolidayModal :visible="taskModal" @close="toggleModal" />
+    <HolidayModal
+      :visible="taskModal"
+      :saving="holidaysStore.saving"
+      :error="holidaysStore.error"
+      :validation-errors="holidaysStore.validationErrors"
+      :holiday="editingHoliday"
+      @close="closeHolidayModal"
+      @save="saveHoliday"
+    />
+    <ConfirmDialog
+      :visible="Boolean(holidayToDelete)"
+      title="Delete Holiday"
+      :message="`Delete ${holidayToDelete?.holiday || 'this holiday'}? This will be sent to the backend.`"
+      confirm-text="Delete"
+      :loading="holidaysStore.saving"
+      @cancel="holidayToDelete = null"
+      @confirm="deleteHoliday"
+    />
+    <AppToast
+      :message="holidaysStore.success || holidaysStore.error"
+      :type="holidaysStore.error ? 'error' : 'success'"
+      @close="holidaysStore.clearMessages()"
+    />
   </div>
 
     </main>

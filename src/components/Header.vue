@@ -8,18 +8,20 @@ import ProfileModal from '@/modals/ProfileModal.vue'
 import useTheme from '@/config/useTheme'
 import departments from '@/data/departments.js'
 import { useSidebarStore } from '@/stores/sidebarStore'
+import { useAuthStore } from '@/stores/authStore'
 import { Menu } from 'lucide-vue-next'
 
 const { isDark } = useTheme();
 
 const route = useRoute();
 const router = useRouter();
-const isLoggedIn = ref(false);
 const profileModal = ref(false);
 const sidebar = useSidebarStore();
+const auth = useAuthStore();
 
-const toggleLogin = () => (isLoggedIn.value = !isLoggedIn.value);
 const toggleModal = () => (profileModal.value = !profileModal.value);
+const currentUserName = computed(() => auth.user?.name || 'HR Manager');
+const currentUserRole = computed(() => auth.user?.role || 'HR Manager');
 
 const props = defineProps({
   department: {
@@ -106,7 +108,7 @@ const title = computed(() => {
   };
 
   // Default mapping
-  return routeMeta[basePath.value]?.title || 'Hello Robert 👋🏻'
+  return routeMeta[basePath.value]?.title || `Hello ${currentUserName.value}`
 });
 
 const greeting = computed(() => {
@@ -192,14 +194,14 @@ const navigateTo = (path) => {
 
       <!-- Profile — hide text on mobile, show avatar only -->
       <div
-        @click="toggleModal(); toggleLogin()"
+        @click="toggleModal()"
         class="flex items-center border border-gray-300 rounded-lg px-2 py-1 space-x-2 cursor-pointer"
       >
         <img :src="name" alt="Employee" class="w-8 h-8 rounded-full flex-shrink-0" />
         <!-- Hide name on mobile -->
         <div class="hidden md:block">
-          <h3 class="text-base font-medium">Robert Smith</h3>
-          <p class="text-xs text-gray-500 font-light">HR Manager</p>
+          <h3 class="text-base font-medium">{{ currentUserName }}</h3>
+          <p class="text-xs text-gray-500 font-light">{{ currentUserRole }}</p>
         </div>
         <ChevronDownIcon class="h-4 w-4" />
       </div>

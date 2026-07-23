@@ -1,14 +1,52 @@
 <script setup>
-import { ref } from 'vue'
-import { CalendarDays, ChevronDown } from 'lucide-vue-next'
+import { ref, watch } from 'vue'
+import { CalendarDays } from 'lucide-vue-next'
 import useTheme from '@/config/useTheme'
+import FormError from '@/components/FormError.vue'
+import LoadingButton from '@/components/LoadingButton.vue'
 
-defineProps({ visible: Boolean })
+const props = defineProps({
+  visible: Boolean,
+  saving: Boolean,
+  error: String,
+  validationErrors: { type: Object, default: () => ({}) },
+  holiday: { type: Object, default: null },
+})
 
-// Store multiple selections
-const selectedTypes = ref([]) 
+const emit = defineEmits(['close', 'save'])
+
+const form = ref({
+  holiday: '',
+  date: '',
+})
 
 const { isDark} = useTheme()
+
+function setForm(holiday = null) {
+  form.value = {
+    holiday: holiday?.holiday || '',
+    date: holiday?.date || '',
+  }
+}
+
+function resetForm() {
+  setForm()
+}
+
+function closeModal() {
+  resetForm()
+  emit('close')
+}
+
+function saveHoliday() {
+  emit('save', { ...form.value, id: props.holiday?.id })
+}
+
+watch(
+  () => props.holiday,
+  (holiday) => setForm(holiday),
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -21,27 +59,31 @@ const { isDark} = useTheme()
     class=" w-full max-w-sm rounded-xl shadow-xl p-6 relative"
     >
 
-      <h2 class="text-lg font-semibold  mb-4">Add New Holiday</h2>
+      <h2 class="text-lg font-semibold  mb-4">{{ holiday ? 'Edit Holiday' : 'Add New Holiday' }}</h2>
       <div class="space-y-4">
         <!-- Inputs -->
         
-        <input type="text" placeholder="Holiday Name" class="w-full border border-[#A2A1A833] rounded-lg px-3 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-
-        <div class="relative">
-          <input type="text" placeholder="Select Department" class="w-full border border-[#A2A1A833] rounded-lg px-3 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-           <CalendarDays class="absolute right-3 bottom-3 h-7 w-7" />
+        <div>
+          <input v-model="form.holiday" type="text" placeholder="Holiday Name" class="w-full border border-[#A2A1A833] rounded-lg px-3 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <FormError :message="validationErrors.holiday" />
         </div>
 
-       
+        <div class="relative">
+          <input v-model="form.date" type="date" class="w-full border border-[#A2A1A833] rounded-lg px-3 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+           <CalendarDays class="absolute right-3 top-3 h-7 w-7" />
+          <FormError :message="validationErrors.date" />
+        </div>
+
+        <p v-if="error" class="text-sm text-red-500">{{ error }}</p>
        
         <div class="flex items-center space-x-4 mt-2">
-            <button @click="$emit('close')" class="mt-4 w-full border border-[#A2A1A833] py-3 rounded-lg hover:bg-indigo-700">
-          Cancel
-        </button>
+          <LoadingButton variant="secondary" :disabled="saving" class="mt-4 w-full" @click="closeModal">
+            Cancel
+          </LoadingButton>
 
-           <button @click="$emit('close')" class="mt-4 w-full bg-[#7152F3] text-white py-3 rounded-lg hover:bg-indigo-700">
-          Add
-        </button>
+          <LoadingButton :loading="saving" class="mt-4 w-full" @click="saveHoliday">
+            {{ holiday ? 'Update' : 'Add' }}
+          </LoadingButton>
         </div>
        
       </div>

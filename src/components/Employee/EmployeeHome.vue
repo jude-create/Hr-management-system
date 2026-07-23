@@ -1,49 +1,59 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { AdjustmentsHorizontalIcon, EyeIcon, PencilIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import { MagnifyingGlassIcon } from '@heroicons/vue/24/solid'
 import { CirclePlus } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
-import departments from '@/data/departments'
 import EmployeeFilter from '@/modals/EmployeeFilter.vue'
-import TablePagination from '@/components/TablePagination.vue'   // ← NEW
+import TablePagination from '@/components/TablePagination.vue'
+import RequestState from '@/components/RequestState.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import AppToast from '@/components/AppToast.vue'
+import { useEmployeesStore } from '@/stores/employeesStore'
 
 const router     = useRouter()
+const employeesStore = useEmployeesStore()
 const taskModal  = ref(false)
 const search     = ref('')
 const perPage    = ref(10)
 const currentPage = ref(1)
-
-const allMembers = computed(() =>
-  departments
-    .flatMap(d => d.members)
-    .sort((a, b) => a.name.localeCompare(b.name))
-)
-
-const filteredMembers = computed(() => {
-  const q = search.value.toLowerCase()
-  if (!q) return allMembers.value
-  return allMembers.value.filter(m =>
-    m.name.toLowerCase().includes(q) ||
-    m.title.toLowerCase().includes(q) ||
-    m.id.includes(q)
-  )
-})
-
-const totalPages = computed(() => Math.ceil(filteredMembers.value.length / perPage.value))
-
-const paginatedMembers = computed(() => {
-  const start = (currentPage.value - 1) * perPage.value
-  return filteredMembers.value.slice(start, start + perPage.value)
-})
+const employeeToDelete = ref(null)
 
 const membersWithDepartment = computed(() =>
-  paginatedMembers.value.map(member => ({
-    ...member,
-    departmentName: departments.find(d => d.members.some(m => m.id === member.id))?.name ?? 'Unknown',
-  }))
+  employeesStore.items.map(member => ({ ...member, departmentName: member.departmentName ?? 'Unknown' }))
 )
 
+const totalPages = computed(() => employeesStore.meta.totalPages)
+const totalItems = computed(() => employeesStore.meta.total)
+
+function fetchEmployees() {
+  employeesStore.fetchEmployees({
+    search: search.value,
+    page: currentPage.value,
+    limit: perPage.value,
+  }).catch(() => {})
+}
+
+function askDeleteEmployee(member) {
+  employeeToDelete.value = member
+}
+
+async function deleteEmployee() {
+  if (!employeeToDelete.value) return
+
+  await employeesStore.remove(employeeToDelete.value.id).catch(() => {})
+  employeeToDelete.value = null
+  fetchEmployees()
+}
+
+onMounted(fetchEmployees)
+
+watch([currentPage, perPage], fetchEmployees)
+
+watch(search, () => {
+  currentPage.value = 1
+  fetchEmployees()
+})
 
 </script>
 
@@ -81,6 +91,13 @@ const membersWithDepartment = computed(() =>
       </div>
     </div>
 
+    <RequestState
+      :loading="employeesStore.loading"
+      :error="employeesStore.error"
+      :empty="membersWithDepartment.length === 0"
+      empty-text="No employees match your current search."
+      @retry="fetchEmployees"
+    >
     <div class="pt-6">
       <!-- DESKTOP TABLE -->
       <div class="border-b-2 border-[#A2A1A81A] pb-3 font-light text-[#655b9e] text-sm hidden lg:grid grid-cols-7 gap-x-6">
@@ -115,8 +132,8 @@ const membersWithDepartment = computed(() =>
           </div>
           <div class="flex items-center gap-2">
             <EyeIcon   class="h-4 w-4 cursor-pointer hover:text-[#7152F3] transition-colors" @click="router.push({ name: 'employee-profile', params: { id: member.id } })" />
-            <PencilIcon class="h-4 w-4 cursor-pointer hover:text-[#7152F3] transition-colors" />
-            <TrashIcon  class="h-4 w-4 cursor-pointer hover:text-red-500 transition-colors" />
+            <PencilIcon class="h-4 w-4 cursor-pointer hover:text-[#7152F3] transition-colors" @click="router.push({ name: 'employee-edit', params: { id: member.id } })" />
+            <TrashIcon  class="h-4 w-4 cursor-pointer hover:text-red-500 transition-colors" @click="askDeleteEmployee(member)" />
           </div>
         </div>
       </div>
@@ -140,8 +157,8 @@ const membersWithDepartment = computed(() =>
           </div>
           <div class="flex items-center gap-2 px-2">
             <EyeIcon    class="h-4 w-4 cursor-pointer" @click="router.push({ name: 'employee-profile', params: { id: member.id } })" />
-            <PencilIcon class="h-4 w-4 cursor-pointer" />
-            <TrashIcon  class="h-4 w-4 cursor-pointer" />
+            <PencilIcon class="h-4 w-4 cursor-pointer hover:text-[#7152F3]" @click="router.push({ name: 'employee-edit', params: { id: member.id } })" />
+            <TrashIcon  class="h-4 w-4 cursor-pointer hover:text-red-500" @click="askDeleteEmployee(member)" />
           </div>
         </div>
         <div class="flex items-center justify-between px-2 text-xs text-[#A2A1A8]">
@@ -160,9 +177,24 @@ const membersWithDepartment = computed(() =>
       v-model:currentPage="currentPage"
       v-model:perPage="perPage"
       :totalPages="totalPages"
-      :totalItems="filteredMembers.length"
+      :totalItems="totalItems"
     />
+    </RequestState>
 
     <EmployeeFilter :visible="taskModal" @close="taskModal = false" />
+    <ConfirmDialog
+      :visible="Boolean(employeeToDelete)"
+      title="Delete Employee"
+      :message="`Delete ${employeeToDelete?.name || 'this employee'}? This action will be sent to the backend.`"
+      confirm-text="Delete"
+      :loading="employeesStore.saving"
+      @cancel="employeeToDelete = null"
+      @confirm="deleteEmployee"
+    />
+    <AppToast
+      :message="employeesStore.success || employeesStore.error"
+      :type="employeesStore.error ? 'error' : 'success'"
+      @close="employeesStore.clearMessages()"
+    />
   </div>
 </template>

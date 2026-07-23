@@ -1,5 +1,6 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
 // Outline icons
 import { UserIcon as UserOutline, BriefcaseIcon as BriefcaseOutline, DocumentIcon as DocumentOutline, LockClosedIcon as KeyOutline } from '@heroicons/vue/24/outline'
@@ -12,9 +13,27 @@ import StepAccess from './employeeSteps/StepAccess.vue'
 import StepPersonal from './employeeSteps/StepPersonal.vue'
 import StepProfessional from './employeeSteps/StepProfessional.vue'
 import StepDocuments from './employeeSteps/StepDocuments.vue'
+import AppToast from '@/components/AppToast.vue'
+import RequestState from '@/components/RequestState.vue'
+import { useEmployeesStore } from '@/stores/employeesStore'
 
 const currentStep = ref(1)
 const totalSteps = 4
+const router = useRouter()
+const employeesStore = useEmployeesStore()
+
+const props = defineProps({
+  employeeId: { type: String, default: '' },
+})
+
+const form = ref({
+  personal: {},
+  professional: {},
+  documents: {},
+  access: {},
+})
+
+const isEditMode = computed(() => Boolean(props.employeeId))
 
 const steps = [
   { label: 'Personal Information', outline: UserOutline, solid: UserSolid },
@@ -29,11 +48,100 @@ const nextStep = () => {
 const prevStep = () => {
   if (currentStep.value > 1) currentStep.value--
 }
+
+function buildPayload() {
+  const personal = form.value.personal
+  const professional = form.value.professional
+
+  return {
+    id: professional.employeeId || props.employeeId || undefined,
+    name: `${personal.firstName || ''} ${personal.lastName || ''}`.trim(),
+    title: professional.designation,
+    departmentName: professional.department,
+    departmentId: professional.department?.toLowerCase().replaceAll(' ', '-'),
+    email: professional.email || personal.email || form.value.access.email,
+    mobile: personal.mobile,
+    type: professional.employeeType,
+    avatar: personal.photo,
+    personal: { ...personal },
+    professional: { ...professional },
+    documents: { ...form.value.documents },
+    access: { ...form.value.access },
+  }
+}
+
+function validatePayload(payload) {
+  if (!payload.name) return 'First name and last name are required.'
+  if (!payload.title) return 'Designation is required.'
+  if (!payload.departmentName) return 'Department is required.'
+  return ''
+}
+
+async function submitEmployee() {
+  const payload = buildPayload()
+  const validationError = validatePayload(payload)
+
+  if (validationError) {
+    employeesStore.error = validationError
+    return
+  }
+
+  const request = isEditMode.value
+    ? employeesStore.update(props.employeeId, payload)
+    : employeesStore.create(payload)
+
+  await request.catch(() => {})
+
+  if (!employeesStore.error) {
+    router.push('/employees')
+  }
+}
+
+async function loadEmployee() {
+  if (!props.employeeId) return
+
+  const employee = await employeesStore.fetchEmployee(props.employeeId).catch(() => null)
+  if (!employee) return
+
+  const [firstName = '', ...lastNameParts] = (employee.name || '').split(' ')
+  form.value = {
+    personal: {
+      firstName,
+      lastName: lastNameParts.join(' '),
+      email: employee.email,
+      mobile: employee.mobile,
+      photo: employee.avatar,
+      ...(employee.personal || {}),
+    },
+    professional: {
+      employeeId: employee.id,
+      userName: employee.name,
+      employeeType: employee.type,
+      email: employee.email,
+      department: employee.departmentName,
+      designation: employee.title,
+      ...(employee.professional || {}),
+    },
+    documents: { ...(employee.documents || {}) },
+    access: {
+      email: employee.email,
+      ...(employee.access || {}),
+    },
+  }
+}
+
+onMounted(loadEmployee)
 </script>
 
 
 <template>
   <div class="py-2">
+    <RequestState
+      :loading="employeesStore.loading && isEditMode"
+      :error="employeesStore.error && isEditMode ? employeesStore.error : ''"
+      :empty="false"
+      @retry="loadEmployee"
+    >
     <!-- Step Header -->
     <div class="flex border-b border-gray-200 mb-6 w-full overflow-x-auto">
       <button
@@ -88,11 +196,15 @@ const prevStep = () => {
 
     <!-- Step Components -->
     <div class="md:px-3 px-2">
-      <StepPersonal v-if="currentStep === 1" />
-      <StepProfessional v-if="currentStep === 2" />
-      <StepDocuments v-if="currentStep === 3" />
-      <StepAccess v-if="currentStep === 4" />
+      <StepPersonal v-if="currentStep === 1" v-model="form.personal" />
+      <StepProfessional v-if="currentStep === 2" v-model="form.professional" />
+      <StepDocuments v-if="currentStep === 3" v-model="form.documents" />
+      <StepAccess v-if="currentStep === 4" v-model="form.access" />
     </div>
+
+    <p v-if="employeesStore.error && !isEditMode" class="px-2 pt-4 text-sm text-red-500">
+      {{ employeesStore.error }}
+    </p>
 
     <!-- Navigation Buttons -->
     <div class="flex justify-end space-x-4 mt-10 px-2">
@@ -112,10 +224,18 @@ const prevStep = () => {
       </button>
       <button
         v-if="currentStep === totalSteps"
+        :disabled="employeesStore.saving"
+        @click="submitEmployee"
         class="px-6 py-2 bg-[#7152F3] text-white rounded-lg text-sm"
       >
-        Submit
+        {{ employeesStore.saving ? 'Saving...' : isEditMode ? 'Update Employee' : 'Submit' }}
       </button>
     </div>
+    </RequestState>
+    <AppToast
+      :message="employeesStore.success || employeesStore.error"
+      :type="employeesStore.error ? 'error' : 'success'"
+      @close="employeesStore.clearMessages()"
+    />
   </div>
 </template>

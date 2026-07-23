@@ -5,7 +5,10 @@ import Header from '@/components/Header.vue';
 import Navbar from '@/components/Navbar.vue';
 import { MagnifyingGlassIcon } from '@heroicons/vue/24/solid';
 import { ref } from 'vue';
+import { useRoute } from 'vue-router';
 
+const route = useRoute()
+const employeeId = route.params.id || ''
 
 </script>
 
@@ -20,7 +23,7 @@ import { ref } from 'vue';
     
      
     <div class="mb-2">
-       <EmployeeInfo />
+       <EmployeeInfo :employee-id="employeeId" />
     </div>
       
       </div>

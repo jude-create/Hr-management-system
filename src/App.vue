@@ -10,7 +10,9 @@ const sidebar = useSidebarStore()
 const route = useRoute()
 
 const isAuthPage = computed(() => {
-  return route.path.startsWith('/login') || route.path.startsWith('/auth')
+  return route.path.startsWith('/login')
+    || route.path.startsWith('/auth')
+    || route.path.startsWith('/forgot-password')
 })
 
 

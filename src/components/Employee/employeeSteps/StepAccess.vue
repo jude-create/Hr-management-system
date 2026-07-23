@@ -1,4 +1,5 @@
 <script setup>
+const model = defineModel({ default: () => ({}) })
 </script>
 
 
@@ -7,10 +8,10 @@
     
 
     <!-- Inputs -->
-    <input type="text" placeholder="Enter Email Address" class="input" />
-    <input type="text" placeholder="Enter Slack ID" class="input" />
-    <input type="text" placeholder="Enter Skype ID" class="input" />
-    <input type="email" placeholder="Enter Github ID" class="input" />
+    <input type="email" placeholder="Enter Email Address" v-model="model.email" class="input" />
+    <input type="text" placeholder="Enter Slack ID" v-model="model.slackId" class="input" />
+    <input type="text" placeholder="Enter Skype ID" v-model="model.skypeId" class="input" />
+    <input type="text" placeholder="Enter Github ID" v-model="model.githubId" class="input" />
     
     </div>
 </template>

@@ -1,7 +1,8 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { useSidebarStore } from '@/stores/sidebarStore'
+import { useAuthStore } from '@/stores/authStore'
 import logo from '@/assets/img/logo.png'
 import useTheme from '@/config/useTheme'
 import { LayoutGrid, CalendarCheck, BriefcaseBusiness,
@@ -27,6 +28,7 @@ import {
 const { isDark, toggleTheme } = useTheme()
 const route = useRoute()
 const sidebar = useSidebarStore()
+const auth = useAuthStore()
 
 const isLogoHovered = ref(false)
 const MOBILE_BREAKPOINT = 768
@@ -43,17 +45,23 @@ onBeforeUnmount(() => window.removeEventListener('resize', handleResize))
 
 
 const navItems = ref([
-  { name: 'Dashboard', path: '/', icon: LayoutGrid, iconSolid: LayoutGridSolid },
-  { name: 'All Employees', path: '/employees', icon: UserGroupIcon, iconSolid: UserGroupIconSolid },
-  { name: 'All Departments', path: '/departments', icon: Layers, iconSolid: LayersSolid },
-  { name: 'Attendance', path: '/attendance', icon: CalendarCheck, iconSolid: CalendarCheck },
-  { name: 'Payroll', path: '/payroll', icon: CurrencyDollarIcon, iconSolid: CurrencyDollarIconSolid },
-  { name: 'Jobs', path: '/jobs', icon: BriefcaseBusiness, iconSolid: BriefcaseBusinessSolid },
-  { name: 'Candidates', path: '/candidates', icon: Users, iconSolid: UsersSolid },
-  { name: 'Leaves', path: '/notifications', icon: ClipboardList, iconSolid: ClipboardListSolid },
-  { name: 'Holidays', path: '/holidays', icon: CalendarDays, iconSolid: CalendarDaysSolid },
-  { name: 'Settings', path: '/settings', icon: Settings, iconSolid: SettingsSolid }
+  { name: 'Dashboard', path: '/', permission: 'dashboard', icon: LayoutGrid, iconSolid: LayoutGridSolid },
+  { name: 'All Employees', path: '/employees', permission: 'employees', icon: UserGroupIcon, iconSolid: UserGroupIconSolid },
+  { name: 'All Departments', path: '/departments', permission: 'departments', icon: Layers, iconSolid: LayersSolid },
+  { name: 'Attendance', path: '/attendance', permission: 'attendance', icon: CalendarCheck, iconSolid: CalendarCheck },
+  { name: 'Payroll', path: '/payroll', permission: 'payroll', icon: CurrencyDollarIcon, iconSolid: CurrencyDollarIconSolid },
+  { name: 'Jobs', path: '/jobs', permission: 'jobs', icon: BriefcaseBusiness, iconSolid: BriefcaseBusinessSolid },
+  { name: 'Candidates', path: '/candidates', permission: 'candidates', icon: Users, iconSolid: UsersSolid },
+  { name: 'Leaves', path: '/notifications', permission: 'notifications', icon: ClipboardList, iconSolid: ClipboardListSolid },
+  { name: 'Holidays', path: '/holidays', permission: 'holidays', icon: CalendarDays, iconSolid: CalendarDaysSolid },
+  { name: 'Settings', path: '/settings', permission: 'settings', icon: Settings, iconSolid: SettingsSolid }
 ])
+
+const visibleNavItems = computed(() => {
+  const permissions = auth.user?.permissions
+  if (!permissions?.length) return navItems.value
+  return navItems.value.filter((item) => permissions.includes(item.permission))
+})
 
 const isActive = (path) => route.path === path || route.path.startsWith(path + '/')
 </script>
@@ -125,7 +133,7 @@ const isActive = (path) => route.path === path || route.path.startsWith(path + '
     <!-- Navigation -->
     <nav class="flex-1 overflow-y-auto pr-1">
       <ul class="lg:space-y-1 space-y-2">
-        <li v-for="item in navItems" :key="item.name">
+        <li v-for="item in visibleNavItems" :key="item.name">
           <router-link
             :to="item.path"
             :title="sidebar.isCollapsed && !sidebar.isMobile ? item.name : ''"

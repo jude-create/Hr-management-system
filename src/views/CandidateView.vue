@@ -5,7 +5,7 @@ import Navbar from '@/components/Navbar.vue';
 import { MagnifyingGlassIcon } from '@heroicons/vue/24/solid';
 import { ref } from 'vue';
 
-
+const search = ref('')
 </script>
 
 <template>
@@ -21,6 +21,7 @@ import { ref } from 'vue';
      <div class=" relative hidden md:block">
         <MagnifyingGlassIcon class="h-6 w-6 absolute ml-2 mt-2" />
        <input
+       v-model="search"
        type="text"
         placeholder="Search..."
        class="pl-10 pr-2 px-2 py-2 w-80 bg-transparent placeholder:text-[#8A8D91] text-base border border-gray-300 rounded-lg 
@@ -29,7 +30,7 @@ import { ref } from 'vue';
     </div>
      
     <div class="md:mt-8 mb-5">
-      <Candidate />
+      <Candidate :search="search" />
     </div>
       
       </div>

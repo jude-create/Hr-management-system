@@ -4,6 +4,7 @@ import { CalendarDays, ChevronDown, LogOut, User2Icon } from 'lucide-vue-next'
 import useTheme from '@/config/useTheme'
 import { UserIcon } from '@heroicons/vue/24/outline'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/authStore'
 
 
 // Store multiple selections
@@ -11,7 +12,7 @@ const selectedTypes = ref([])
 
 const { isDark} = useTheme()
 
-defineProps({
+const props = defineProps({
   visible: Boolean,
   userId: String
 });
@@ -38,8 +39,10 @@ onUnmounted(() => {
 
 
 const router = useRouter()
+const auth = useAuthStore()
 
 const handleLogout = () => {
+  auth.logout()
   emit('close')   // close modal first
   router.push('/login') // then navigate
 };
@@ -48,7 +51,7 @@ const handleLogout = () => {
 
 const goToProfile = () => {
   emit('close') // close modal first
-  router.push({ name: 'employee-profile', params: { id: props.userId } })
+  router.push({ name: 'employee-profile', params: { id: props.userId || auth.user?.id || 'EMP001' } })
 };
 
 </script>

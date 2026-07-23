@@ -1,69 +1,34 @@
 <script setup>
 import Header from '@/components/Header.vue';
 import Navbar from '@/components/Navbar.vue';
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import name from '@/assets/img/name.png'
 import user from '@/assets/img/user.png'
 import Image2 from '@/assets/img/image2.png'
 import lock from '@/assets/img/lock.png'
 import useTheme from '@/config/useTheme'
+import RequestState from '@/components/RequestState.vue'
+import AppToast from '@/components/AppToast.vue'
+import { useNotificationsStore } from '@/stores/notificationsStore'
 
 
 
 const {  isDark } = useTheme()
-
-// Notification data array
-const notifications = [
-  {
-    id: 1,
-    icon: name,
-    title: 'Leave Request',
-    description: '@Robert Fox has applied for leave',
-    time: 'Just Now',
-    timestamp: new Date().getTime(), // For sorting
-    iconClass: 'w-12 h-12 rounded-full',
-    read: false
-  },
-  {
-    id: 2,
-    icon: user,
-    title: 'Check In Issue',
-    description: '@Alexa shared a message regarding check in issue',
-    time: '11:16 AM',
-    timestamp: new Date().setHours(11, 16), // Today 11:16 AM
-    iconClass: 'w-12 h-12 rounded-full bg-[#7152F31A] p-2',
-    read: false
-  },
-  {
-    id: 3,
-    icon: Image2,
-    title: 'Applied job for "Sales Manager" Position',
-    description: '@shane Watson has applied for job',
-    time: '09:00 AM',
-    timestamp: new Date().setHours(9, 0), // Today 9:00 AM
-    iconClass: 'w-12 h-12 rounded-full',
-    read: true
-  },
-  {
-    id: 4,
-    icon: lock,
-    title: 'Password Update successfully',
-    description: 'Your password has been updated successfully',
-    time: 'Yesterday',
-    timestamp: new Date().setDate(new Date().getDate() - 1), // Yesterday
-    iconClass: 'w-12 h-12 rounded-full bg-[#7152F31A] p-2',
-    read: true
-  }
-]
-
-
+const notificationsStore = useNotificationsStore()
 
 // Sort option
 const sortOption = ref('newest');
 
+const iconMap = {
+  leave: name,
+  attendance: user,
+  candidate: Image2,
+  default: lock,
+}
+
 // Sorted notifications
 const sortedNotifications = computed(() => {
-  const notificationsToSort = [...notifications];
+  const notificationsToSort = [...notificationsStore.items];
   
   switch (sortOption.value) {
     case 'newest':
@@ -75,15 +40,15 @@ const sortedNotifications = computed(() => {
   }
 });
 
-// Mark as read function
-// const markAsRead = (id) => {
-//   const notification = notifications.find(n => n.id === id);
-//   if (notification) notification.read = true;
-// };
+function fetchNotifications() {
+  notificationsStore.fetchAll().catch(() => {})
+}
 
-// const markAllAsRead = () => {
-//   notifications.forEach(notification => notification.read = true);
-// };
+function updateRequest(notification, status) {
+  notificationsStore.updateStatus(notification.id, status).catch(() => {})
+}
+
+onMounted(fetchNotifications)
 
 </script>
 
@@ -141,10 +106,17 @@ const sortedNotifications = computed(() => {
         </div>
 
         <!-- Notifications List -->
+        <RequestState
+          :loading="notificationsStore.loading"
+          :error="notificationsStore.error && !notificationsStore.saving ? notificationsStore.error : ''"
+          :empty="sortedNotifications.length === 0"
+          empty-text="No notifications found."
+          @retry="fetchNotifications"
+        >
         <div class="divide-y-2 divide-[#A2A1A81A]">
           <!-- Empty State -->
           <div 
-            v-if="sortedNotifications.length === 0"
+            v-if="false"
             class="py-12 text-center text-gray-500"
           >
             No notifications found
@@ -159,9 +131,9 @@ const sortedNotifications = computed(() => {
             <div class="flex space-x-3">
               <div>
                 <img 
-                  :src="notification.icon" 
+                  :src="iconMap[notification.actionType] || iconMap.default" 
                   :alt="notification.title" 
-                  :class="notification.iconClass" 
+                  class="w-12 h-12 rounded-full" 
                 />
               </div>
               <div>
@@ -170,6 +142,13 @@ const sortedNotifications = computed(() => {
                   <span v-if="!notification.read" class="ml-2 inline-block w-2 h-2 rounded-full bg-[#7152F3]"></span>
                 </h2>
                 <p class="font-light text-sm md:text-base text-[#A2A1A8]">{{ notification.description }}</p>
+                <div v-if="notification.status" class="mt-2 flex items-center gap-2">
+                  <span class="rounded-lg bg-[#7152F31A] px-2 py-1 text-xs text-[#7152F3]">{{ notification.status }}</span>
+                  <template v-if="notification.status === 'Pending'">
+                    <button class="rounded-lg border border-[#03A12F] px-3 py-1 text-xs text-[#03A12F]" @click="updateRequest(notification, 'Approved')">Approve</button>
+                    <button class="rounded-lg border border-red-500 px-3 py-1 text-xs text-red-500" @click="updateRequest(notification, 'Rejected')">Reject</button>
+                  </template>
+                </div>
               </div>
             </div>
 
@@ -178,6 +157,12 @@ const sortedNotifications = computed(() => {
             </div>
           </div>
         </div>
+        </RequestState>
+        <AppToast
+          :message="notificationsStore.success || notificationsStore.error"
+          :type="notificationsStore.error ? 'error' : 'success'"
+          @close="notificationsStore.clearMessages()"
+        />
       </div>
     </main>
   </div>

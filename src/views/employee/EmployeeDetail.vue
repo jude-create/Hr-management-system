@@ -1,30 +1,28 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import departments from '@/data/departments'
 import Navbar from '@/components/Navbar.vue'
 import Header from '@/components/Header.vue'
 import { BriefcaseBusiness, PencilLine } from 'lucide-vue-next'
 import { EnvelopeIcon } from '@heroicons/vue/24/outline'
 import useTheme from '@/config/useTheme'
 import SideBar from '@/components/Employee/Employee-profile/SideBar.vue'
+import RequestState from '@/components/RequestState.vue'
+import { useEmployeesStore } from '@/stores/employeesStore'
 
 const { isDark } = useTheme()
 const route = useRoute()
+const employeesStore = useEmployeesStore()
 const memberId = route.params.id
 
-const member = computed(() => {
-  return departments
-    .flatMap(dep => dep.members)
-    .find(m => m.id === memberId)
-})
+const member = computed(() => employeesStore.selected)
+const departmentName = computed(() => member.value?.departmentName || 'Unknown Department')
 
-const departmentName = computed(() => {
-  const dep = departments.find(d => d.members.some(m => m.id === memberId))
-  return dep?.name || 'Unknown Department'
-})
+function fetchEmployee() {
+  employeesStore.fetchEmployee(memberId).catch(() => {})
+}
 
-
+onMounted(fetchEmployee)
 </script>
 
 <template>
@@ -35,6 +33,13 @@ const departmentName = computed(() => {
 
       <div class="flex-1 md:overflow-y-auto px-3 mt-4 overflow-hidden">
         <div class="border border-[#A2A1A833] rounded-lg px-3 shadow-sm">
+          <RequestState
+            :loading="employeesStore.loading"
+            :error="employeesStore.error"
+            :empty="!member"
+            empty-text="Employee profile was not found."
+            @retry="fetchEmployee"
+          >
           <!-- Employee header -->
           <div class="md:flex md:justify-between border-b-2 border-[#A2A1A833] pb-6   w-full pt-5"
             :class="{ 'bg-[#16151C] text-white': isDark, 
@@ -49,14 +54,14 @@ const departmentName = computed(() => {
                 </div>
                 <div class="flex items-center space-x-2">
                   <EnvelopeIcon class="w-6 h-6" />
-                  <p>{{ member.id.toLowerCase() }}@example.com</p>
+                  <p>{{ member.email || `${member.id.toLowerCase()}@example.com` }}</p>
                 </div>
               </div>
             </div>
           
              <div class="flex mt-3 items-center justify-end">
             <RouterLink
-            to="/employees/add-new-employee"
+            :to="{ name: 'employee-edit', params: { id: member.id } }"
               class="flex items-center space-x-2 border border-[#7152F3] bg-[#7152F3] text-white rounded-lg p-3 shadow-sm hover:bg-[#5b41cc] transition"
             >
               <PencilLine />
@@ -83,6 +88,7 @@ const departmentName = computed(() => {
               <RouterView :employee="member" :department="departmentName" />
             </div>
           </div>
+          </RequestState>
         </div>
       </div>
     </div>

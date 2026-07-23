@@ -1,307 +1,255 @@
 <script setup>
-import Header from '@/components/Header.vue';
-import Navbar from '@/components/Navbar.vue';
-import { ref, onMounted, onUnmounted } from 'vue';
-import { ComputerDesktopIcon } from '@heroicons/vue/24/solid'
-import { ChevronDownIcon, SunIcon, MoonIcon, CheckIcon } from '@heroicons/vue/24/solid';
-import { watch } from 'vue'
-import { computed } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { ComputerDesktopIcon, MoonIcon, SunIcon } from '@heroicons/vue/24/solid'
 import useTheme from '@/config/useTheme'
+import AppToast from '@/components/AppToast.vue'
+import RequestState from '@/components/RequestState.vue'
+import { useAuthStore } from '@/stores/authStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 
 const { theme, isDark, setTheme } = useTheme()
+const auth = useAuthStore()
+const settingsStore = useSettingsStore()
 
-
-
-
-// Appearance options with system
 const appearanceOptions = [
   { id: 'light', name: 'Light', icon: SunIcon },
   { id: 'dark', name: 'Dark', icon: MoonIcon },
-  { id: 'system', name: 'System', icon: ComputerDesktopIcon }
-];
+  { id: 'system', name: 'System', icon: ComputerDesktopIcon },
+]
 
-
-
-const showAppearanceDropdown = ref(false);
-
-// Update selected appearance
-const selectedAppearance = computed({
-  get: () => theme.value,
-  set: (val) => setTheme(val)
-});
-
-// Language options
 const languageOptions = [
   { id: 'en', name: 'English' },
   { id: 'fr', name: 'French' },
   { id: 'es', name: 'Spanish' },
-  { id: 'de', name: 'German' },
-  { id: 'zh', name: 'Chinese' }
-];
-const selectedLanguage = ref('en');
-const showLanguageDropdown = ref(false);
+]
 
-// Toggle dropdowns with proper event handling
-const toggleAppearanceDropdown = (e) => {
-  e.stopPropagation();
-  showAppearanceDropdown.value = !showAppearanceDropdown.value;
-  showLanguageDropdown.value = false;
-};
-
-const toggleLanguageDropdown = (e) => {
-  e.stopPropagation();
-  showLanguageDropdown.value = !showLanguageDropdown.value;
-  showAppearanceDropdown.value = false;
-};
-
-// Close dropdowns when clicking outside
-const handleClickOutside = (e) => {
-  const isDropdownButton = e.target.closest('.dropdown-button');
-  const isDropdownContent = e.target.closest('.dropdown-content');
-  
-  if (!isDropdownButton && !isDropdownContent) {
-    showAppearanceDropdown.value = false;
-    showLanguageDropdown.value = false;
-  }
-};
-
-// Set up and clean up event listeners
-onMounted(() => {
- selectedAppearance.value = isDark.value ? 'dark' : 'light'
-  document.addEventListener('click', handleClickOutside);
-});
-
-onUnmounted(() => {
-  selectedAppearance.value = isDark.value ? 'dark' : 'light'
-  document.removeEventListener('click', handleClickOutside);
-});
-
-
-// State variables (equivalent of useState)
-const isToggled = ref(true)
-const isToggled2 = ref(true)
-const isToggled3 = ref(true)
-const isToggled4 = ref(true)
-
-// Methods to toggle
-const handleToggle = () => {
-  isToggled.value = !isToggled.value
+const roleOptions = ['Admin', 'HR Manager', 'Recruiter', 'Payroll']
+const permissionLabels = {
+  dashboard: 'Dashboard',
+  employees: 'Employees',
+  departments: 'Departments',
+  attendance: 'Attendance',
+  payroll: 'Payroll',
+  jobs: 'Jobs',
+  candidates: 'Candidates',
+  notifications: 'Leaves',
+  holidays: 'Holidays',
+  settings: 'Settings',
 }
 
-const handleToggle2 = () => {
-  isToggled2.value = !isToggled2.value
-}
-
-const handleToggle3 = () => {
-  isToggled2.value = !isToggled3.value
-}
-
-const handleToggle4 = () => {
-  isToggled2.value = !isToggled4.value
-}
-
-watch(selectedAppearance, (newVal) => {
-  if (newVal === 'dark' && !isDark.value) {
-    toggleTheme()
-  } else if (newVal === 'light' && isDark.value) {
-    toggleTheme()
-  }
+const form = ref({
+  appearance: theme.value,
+  language: 'en',
+  twoFactor: true,
+  mobilePush: true,
+  desktopNotifications: true,
+  emailNotifications: true,
+  role: auth.user?.role || 'HR Manager',
+  permissions: auth.user?.permissions || [],
 })
 
+const profile = ref({
+  name: auth.user?.name || '',
+  email: auth.user?.email || '',
+  role: auth.user?.role || 'HR Manager',
+})
 
+const passwordForm = ref({
+  currentPassword: '',
+  newPassword: '',
+})
+
+const allMessages = computed(() => settingsStore.success || settingsStore.error || auth.message || auth.error)
+const messageType = computed(() => settingsStore.error || auth.error ? 'error' : 'success')
+
+function applySettings(settings) {
+  if (!settings) return
+  form.value = {
+    ...form.value,
+    ...settings,
+  }
+  profile.value.role = settings.role || profile.value.role
+  setTheme(settings.appearance || 'system')
+}
+
+async function fetchSettings() {
+  const settings = await settingsStore.fetchSettings().catch(() => null)
+  applySettings(settings)
+}
+
+async function savePreferences() {
+  const response = await settingsStore.saveSettings(form.value).catch(() => null)
+  if (response) {
+    applySettings(response)
+    await auth.updateProfile({
+      ...profile.value,
+      role: response.role,
+      permissions: response.permissions,
+    }).catch(() => {})
+  }
+}
+
+async function saveProfile() {
+  await auth.updateProfile(profile.value).catch(() => {})
+}
+
+async function savePassword() {
+  await auth.updatePassword(passwordForm.value).catch(() => {})
+  if (!auth.error) {
+    passwordForm.value = { currentPassword: '', newPassword: '' }
+  }
+}
+
+function closeToast() {
+  settingsStore.clearMessages()
+  auth.error = ''
+  auth.message = ''
+}
+
+watch(() => form.value.appearance, (value) => setTheme(value))
+watch(() => form.value.role, (role) => {
+  profile.value.role = role
+})
+
+onMounted(fetchSettings)
 </script>
 
 <template>
   <div class="flex min-h-screen">
-  
-  
-
-    <!-- Main content -->
     <main class="flex-1">
-      
-
       <div class="border border-[#A2A1A833] rounded-lg px-3 pt-5 mt-4 shadow-sm mx-3 mb-9">
-        <!-- Settings Sections -->
-        <div class=" mb-2  divide-y-2 divide-[#A2A1A81A]">
-          <!-- Appearance Section -->
-        <div class="relative py-3">
-    <div class="flex justify-between items-center">
-      <div>
-        <p class="font-semibold text-sm">Appearance</p>
-        <p class="text-sm text-[#A2A1A8]">Customize how your theme looks on your device</p>
-      </div>
-      <div class="relative">
-        <button 
-          @click="toggleAppearanceDropdown"
-          class="dropdown-button flex items-center justify-between w-32 px-4 py-2 text-sm font-medium border border-gray-300 rounded-md shadow-sm focus:outline-none"
+        <RequestState
+          :loading="settingsStore.loading"
+          :error="settingsStore.error && !settingsStore.saving ? settingsStore.error : ''"
+          :empty="false"
+          @retry="fetchSettings"
         >
-          <span class="flex items-center">
-            <component 
-              :is="appearanceOptions.find(opt => opt.id === selectedAppearance)?.icon" 
-              class="w-4 h-4 mr-2" 
-            />
-            {{ appearanceOptions.find(opt => opt.id === selectedAppearance)?.name }}
-          </span>
-          <ChevronDownIcon class="w-4 h-4 ml-2" />
-        </button>
-        
-        <!-- Appearance Dropdown -->
-        <div 
-          v-if="showAppearanceDropdown"
-          class="dropdown-content absolute right-0 z-[1000] w-32 mt-1  border border-gray-200  rounded-md shadow-lg"
-          :class="{
-          'bg-[#16151C] text-[#FFFFFF]': isDark,
-         'bg-[#FFFFFF] text-[#16151C]': !isDark
-          }"
-        >
-          <div class="py-1">
+          <div class="grid gap-6 lg:grid-cols-2">
+            <section class="space-y-4">
+              <div>
+                <h2 class="text-base font-semibold">Preferences</h2>
+                <p class="text-sm text-[#A2A1A8]">Saved through the settings API contract.</p>
+              </div>
+
+              <div class="grid gap-4 rounded-lg border border-[#A2A1A833] p-4">
+                <label class="grid gap-2 text-sm">
+                  Appearance
+                  <div class="grid grid-cols-3 gap-2">
+                    <button
+                      v-for="option in appearanceOptions"
+                      :key="option.id"
+                      class="flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm"
+                      :class="form.appearance === option.id ? 'border-[#7152F3] bg-[#7152F310] text-[#7152F3]' : 'border-[#A2A1A833]'"
+                      @click="form.appearance = option.id"
+                    >
+                      <component :is="option.icon" class="h-4 w-4" />
+                      {{ option.name }}
+                    </button>
+                  </div>
+                </label>
+
+                <label class="grid gap-2 text-sm">
+                  Language
+                  <select v-model="form.language" class="rounded-lg border border-[#A2A1A833] bg-transparent px-3 py-2">
+                    <option v-for="option in languageOptions" :key="option.id" :value="option.id">
+                      {{ option.name }}
+                    </option>
+                  </select>
+                </label>
+
+                <div class="grid gap-3">
+                  <label class="flex items-center justify-between gap-4 text-sm">
+                    Two-factor Authentication
+                    <input v-model="form.twoFactor" type="checkbox" class="h-5 w-5 accent-[#7152F3]" />
+                  </label>
+                  <label class="flex items-center justify-between gap-4 text-sm">
+                    Mobile Push Notifications
+                    <input v-model="form.mobilePush" type="checkbox" class="h-5 w-5 accent-[#7152F3]" />
+                  </label>
+                  <label class="flex items-center justify-between gap-4 text-sm">
+                    Desktop Notifications
+                    <input v-model="form.desktopNotifications" type="checkbox" class="h-5 w-5 accent-[#7152F3]" />
+                  </label>
+                  <label class="flex items-center justify-between gap-4 text-sm">
+                    Email Notifications
+                    <input v-model="form.emailNotifications" type="checkbox" class="h-5 w-5 accent-[#7152F3]" />
+                  </label>
+                </div>
+              </div>
+            </section>
+
+            <section class="space-y-4">
+              <div>
+                <h2 class="text-base font-semibold">Profile & Security</h2>
+                <p class="text-sm text-[#A2A1A8]">Updates the authenticated user contract.</p>
+              </div>
+
+              <div class="grid gap-4 rounded-lg border border-[#A2A1A833] p-4">
+                <input v-model="profile.name" type="text" placeholder="Full name" class="rounded-lg border border-[#A2A1A833] bg-transparent px-3 py-2" />
+                <input v-model="profile.email" type="email" placeholder="Email address" class="rounded-lg border border-[#A2A1A833] bg-transparent px-3 py-2" />
+                <button
+                  :disabled="auth.loading"
+                  class="w-fit rounded-lg bg-[#7152F3] px-4 py-2 text-sm text-white disabled:opacity-70"
+                  @click="saveProfile"
+                >
+                  {{ auth.loading ? 'Saving...' : 'Save Profile' }}
+                </button>
+              </div>
+
+              <div class="grid gap-4 rounded-lg border border-[#A2A1A833] p-4">
+                <input v-model="passwordForm.currentPassword" type="password" placeholder="Current password" class="rounded-lg border border-[#A2A1A833] bg-transparent px-3 py-2" />
+                <input v-model="passwordForm.newPassword" type="password" placeholder="New password" class="rounded-lg border border-[#A2A1A833] bg-transparent px-3 py-2" />
+                <button
+                  :disabled="auth.loading"
+                  class="w-fit rounded-lg border border-[#7152F3] px-4 py-2 text-sm text-[#7152F3] disabled:opacity-70"
+                  @click="savePassword"
+                >
+                  {{ auth.loading ? 'Updating...' : 'Update Password' }}
+                </button>
+              </div>
+            </section>
+          </div>
+
+          <section class="mt-6 space-y-4 rounded-lg border border-[#A2A1A833] p-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 class="text-base font-semibold">Roles & Permissions</h2>
+                <p class="text-sm text-[#A2A1A8]">Controls which modules appear in the sidebar.</p>
+              </div>
+              <select v-model="form.role" class="rounded-lg border border-[#A2A1A833] bg-transparent px-3 py-2 text-sm">
+                <option v-for="role in roleOptions" :key="role" :value="role">{{ role }}</option>
+              </select>
+            </div>
+
+            <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+              <label
+                v-for="(label, permission) in permissionLabels"
+                :key="permission"
+                class="flex items-center gap-2 rounded-lg border border-[#A2A1A833] px-3 py-2 text-sm"
+              >
+                <input v-model="form.permissions" type="checkbox" :value="permission" class="h-4 w-4 accent-[#7152F3]" />
+                {{ label }}
+              </label>
+            </div>
+          </section>
+
+          <div class="mt-6 flex justify-end">
             <button
-              v-for="option in appearanceOptions"
-              :key="option.id"
-              @click="selectedAppearance = option.id; showAppearanceDropdown = false;"
-              class="flex items-center justify-between w-full px-4 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700"
+              :disabled="settingsStore.saving"
+              class="rounded-lg bg-[#7152F3] px-5 py-2.5 text-sm text-white disabled:cursor-not-allowed disabled:opacity-70"
+              @click="savePreferences"
             >
-              <span class="flex items-center">
-                <component :is="option.icon" class="w-4 h-4 mr-2" />
-                {{ option.name }}
-              </span>
-              <CheckIcon v-if="selectedAppearance === option.id" class="w-4 h-4 text-blue-500" />
+              {{ settingsStore.saving ? 'Saving...' : 'Save Settings' }}
             </button>
           </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-          <!-- Language Section -->
-          <div class="relative py-3">
-            <div class="flex justify-between items-center">
-              <div>
-                <p class="font-semibold text-sm">Language</p>
-                <p class="text-sm text-[#A2A1A8]">Select your language</p>
-              </div>
-              <div class="relative">
-                <button 
-                  @click="toggleLanguageDropdown"
-                  class="dropdown-button flex items-center justify-between w-32 px-4 py-2 text-sm font-medium  border border-gray-300 rounded-md shadow-sm focus:outline-none"
-                >
-                  <span>
-                    {{ languageOptions.find(opt => opt.id === selectedLanguage)?.name }}
-                  </span>
-                  <ChevronDownIcon class="w-4 h-4 ml-2" />
-                </button>
-                
-                <!-- Language Dropdown -->
-                <transition name="fade">
-                  <div 
-                    v-if="showLanguageDropdown"
-                    class="dropdown-content absolute right-0 z-[1000] w-32 mt-1  border 0 rounded-md shadow-lg"
-                     :class="{
-                   'bg-[#16151C] text-[#FFFFFF]': isDark,
-                  'bg-[#FFFFFF] text-[#16151C]': !isDark
-                     }"
-                  >
-                    <div class="py-1">
-                      <button
-                        v-for="option in languageOptions"
-                        :key="option.id"
-                        @click="selectedLanguage = option.id; showLanguageDropdown = false"
-                        class="flex items-center justify-between w-full px-4 py-2 text-sm text-left  hover:bg-gray-100"
-                      >
-                        <span>{{ option.name }}</span>
-                        <CheckIcon v-if="selectedLanguage === option.id" class="w-4 h-4 text-blue-500" />
-                      </button>
-                    </div>
-                  </div>
-                </transition>
-              </div>
-            </div>
-          </div>
-
-          <!-- Other settings sections -->
-          <div class="flex justify-between py-3">
-            <div>
-              <p class="font-semibold text-sm ">Two-factor Authentication</p>
-              <p class="text-sm text-[#A2A1A8]">Keep your account secure by enabling 2FA via mail</p>
-            </div>
-               <div
-                 @click="handleToggle"
-                 class="relative w-14 h-7 flex items-center rounded-full cursor-pointer transition-colors duration-300"
-                 :class="isToggled ? 'bg-[#34C759]' : 'bg-gray-300'"
-                >
-               <div
-                class="absolute w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-300"
-               :class="isToggled ? 'translate-x-8' : 'translate-x-0'"
-            ></div>
-        </div>
-            
-          </div>
-
-          <div class="flex justify-between py-3">
-            <div>
-              <p class="font-semibold text-sm">Mobile Push Notifications</p>
-              <p class="text-sm text-[#A2A1A8]">Receive push notification</p>
-            </div>
-             <div
-                 @click="handleToggle2"
-                 class="relative w-14 h-7 flex items-center rounded-full cursor-pointer transition-colors duration-300"
-                 :class="isToggled2 ? 'bg-[#34C759]' : 'bg-gray-300'"
-                >
-               <div
-                class="absolute w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-300"
-               :class="isToggled2 ? 'translate-x-8' : 'translate-x-0'"
-            ></div>
-            </div>
-          </div>
-
-          <div class="flex justify-between py-3">
-            <div>
-              <p class="font-semibold text-sm">Desktop Notification</p>
-              <p class="text-sm text-[#A2A1A8]">Receive push notification in desktop</p>
-            </div>
-             <div
-                 @click="handleToggle3"
-                 class="relative w-14 h-7 flex items-center rounded-full cursor-pointer transition-colors duration-300"
-                 :class="isToggled3 ? 'bg-[#34C759]' : 'bg-gray-300'"
-                >
-               <div
-                class="absolute w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-300"
-               :class="isToggled3 ? 'translate-x-8' : 'translate-x-0'"
-            ></div>
-            </div>
-          </div>
-
-          <div class=" flex justify-between py-3">
-            <div>
-              <p class="font-semibold text-sm">Email Notifications</p>
-              <p class="text-sm text-[#A2A1A8]">Receive email notification</p>
-            </div>
-             <div
-                 @click="handleToggle4"
-                 class="relative w-14 h-7 flex items-center rounded-full cursor-pointer transition-colors duration-300"
-                 :class="isToggled4 ? 'bg-[#34C759]' : 'bg-gray-300'"
-                >
-               <div
-                class="absolute w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-300"
-               :class="isToggled4 ? 'translate-x-8' : 'translate-x-0'"
-            ></div>
-            </div>
-          </div>
-        </div>
+        </RequestState>
       </div>
     </main>
+
+    <AppToast
+      :message="allMessages"
+      :type="messageType"
+      @close="closeToast"
+    />
   </div>
 </template>
-
-<style>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.15s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-  transform: translateY(-5px);
-}
-</style>

@@ -5,12 +5,14 @@ import { ChevronLeftIcon } from '@heroicons/vue/24/solid'
 import { ref, nextTick } from 'vue'
 import Cone from '@/assets/img/cone.png'
 import useTheme from '@/config/useTheme'
+import { useAuthStore } from '@/stores/authStore'
 
 const router = useRouter()
 const otp = ref(['', '', '', '', ''])
 const inputRefs = ref([])
 const hasError = ref(false)
-const { isDark, toggleTheme } = useTheme()
+const { isDark } = useTheme()
+const auth = useAuthStore()
 const modalVisible = ref(false)
 const shakeKey = ref(0) // changes to retrigger animation
 
@@ -39,14 +41,24 @@ const handleKeydown = (index, event) => {
 
 const getOtpCode = () => otp.value.join('')
 
-const verifyOtp = () => {
+const verifyOtp = async () => {
   const enteredOtp = getOtpCode()
-  if (enteredOtp.length === otp.value.length) {
-    hasError.value = false
-    modalVisible.value = true
-  } else {
+  auth.error = ''
+
+  if (enteredOtp.length !== otp.value.length) {
     hasError.value = true
-    shakeKey.value++ // retriggers animation
+    shakeKey.value++
+    return
+  }
+
+  hasError.value = false
+
+  try {
+    await auth.verifyOtp(enteredOtp)
+    modalVisible.value = true
+  } catch (error) {
+    hasError.value = true
+    shakeKey.value++
   }
 }
 
@@ -75,7 +87,7 @@ const closeModal = () => {
       <div class="flex flex-col space-y-4">
         <h2 class="text-xl font-semibold">Enter OTP</h2>
         <p class="text-gray-500 text-sm font-light">
-          We have shared a code with your registered email address robertallen@example.com
+          We have shared a code with your registered email address.
         </p>
 
         <div class="flex space-x-4 mt-4" :key="shakeKey">
@@ -99,11 +111,13 @@ const closeModal = () => {
 
 
         <button
-          class="mt-6 bg-[#7152F3] hover:bg-[#5b41cc] text-white px-6 py-4 rounded-lg font-medium"
+          class="mt-6 bg-[#7152F3] hover:bg-[#5b41cc] text-white px-6 py-4 rounded-lg font-medium disabled:cursor-not-allowed disabled:opacity-70"
+          :disabled="auth.loading"
           @click="verifyOtp"
         >
-          Verify
+          {{ auth.loading ? 'Verifying...' : 'Verify' }}
         </button>
+        <p v-if="auth.error" class="text-sm text-red-500">{{ auth.error }}</p>
       </div>
     </section>
 
