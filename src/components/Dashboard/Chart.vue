@@ -1,114 +1,122 @@
 <script setup>
+import { computed } from 'vue'
 import { Bar } from 'vue-chartjs'
 import {
-  Chart as ChartJS,
-  Title,
-  Tooltip,
-  Legend,
   BarElement,
   CategoryScale,
+  Chart as ChartJS,
+  Legend,
   LinearScale,
+  Tooltip,
 } from 'chart.js'
 
-ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale)
+ChartJS.register(Tooltip, Legend, BarElement, CategoryScale, LinearScale)
 
-const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-const values = [60, 80, 95, 30, 80, 85, 100]
+const props = defineProps({
+  records: { type: Array, default: () => [] },
+})
 
-// Create segments
-const blueSegment = values.map(v => Math.min(v, 60))
-const yellowSegment = values.map(v => Math.max(0, Math.min(v - 60, 30)))
-const redSegment = values.map(v => Math.max(0, v - 90))
+const fallbackRecords = [
+  { date: '2026-07-20', status: 'On Time' },
+  { date: '2026-07-20', status: 'On Time' },
+  { date: '2026-07-21', status: 'Late' },
+  { date: '2026-07-22', status: 'On Time' },
+  { date: '2026-07-22', status: 'Requested' },
+  { date: '2026-07-23', status: 'On Time' },
+  { date: '2026-07-23', status: 'Late' },
+]
 
-const chartData = {
-  labels,
+const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+const dailyCounts = computed(() => {
+  const source = props.records.length ? props.records : fallbackRecords
+  const counts = weekDays.map((day) => ({ day, onTime: 0, late: 0, corrections: 0 }))
+
+  source.forEach((record) => {
+    const date = record.date ? new Date(record.date) : new Date()
+    const index = (date.getDay() + 6) % 7
+    const bucket = counts[index]
+
+    if (record.correctionStatus === 'Requested' || record.status === 'Requested') {
+      bucket.corrections += 1
+    } else if (record.status === 'Late') {
+      bucket.late += 1
+    } else {
+      bucket.onTime += 1
+    }
+  })
+
+  return counts
+})
+
+const chartData = computed(() => ({
+  labels: dailyCounts.value.map((item) => item.day),
   datasets: [
     {
-      label: '0–60%',
-      data: blueSegment,
-      backgroundColor: '#3B82F6',
-      barThickness: 10,
-      borderSkipped: false, // don't skip borders
-      borderRadius: {
-         topLeft: 6,
-        topRight: 6,
-        bottomLeft: 6,
-        bottomRight: 6,
-      },
-      stack: 'stacked',
+      label: 'On time',
+      data: dailyCounts.value.map((item) => item.onTime),
+      backgroundColor: '#3FC28A',
+      borderRadius: 6,
+      barThickness: 12,
     },
     {
-      label: '61–90%',
-      data: yellowSegment,
-      backgroundColor: '#FACC15',
-      barThickness: 10,
-      borderSkipped: false,
-      borderRadius: {
-        topLeft: 6,
-        topRight: 6,
-        bottomLeft: 6,
-        bottomRight: 6,
-      },
-      stack: 'stacked',
+      label: 'Late',
+      data: dailyCounts.value.map((item) => item.late),
+      backgroundColor: '#F45B69',
+      borderRadius: 6,
+      barThickness: 12,
     },
     {
-      label: '91–100%',
-      data: redSegment,
-      backgroundColor: '#EF4444',
-      barThickness: 10,
-      borderSkipped: false,
-      borderRadius: {
-        topLeft: 6,
-        topRight: 6,
-      },
-      stack: 'stacked',
+      label: 'Corrections',
+      data: dailyCounts.value.map((item) => item.corrections),
+      backgroundColor: '#7152F3',
+      borderRadius: 6,
+      barThickness: 12,
     },
   ],
-}
+}))
 
 const chartOptions = {
   responsive: true,
+  maintainAspectRatio: false,
   scales: {
     y: {
       beginAtZero: true,
-      max: 100,
-      stacked: true,
-     ticks: {
-       callback: val => `${val}%`,
-       stepSize: 20, // adjust step size for better readability
-       padding: 3,           // adds space between tick lines
-       font: {
-     size: 14,            // adjust font size if needed
-  },
-},
-
+      ticks: {
+        precision: 0,
+        stepSize: 1,
+        color: '#8A8D91',
+        font: { size: 12 },
+      },
       grid: {
         drawBorder: false,
-        color: '#A2A1A833', // ← make horizontal lines invisible
+        color: '#A2A1A833',
       },
     },
     x: {
-      stacked: true,
-      grid: {
-        drawBorder: false,
-        color: 'transparent', // ← make vertical lines invisible
+      ticks: {
+        color: '#8A8D91',
+        font: { size: 12 },
       },
+      grid: { display: false },
     },
   },
   plugins: {
     legend: { display: false },
     tooltip: {
+      backgroundColor: '#16151C',
+      padding: 10,
+      displayColors: true,
       callbacks: {
-        label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y}%`,
+        label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y}`,
       },
     },
   },
 }
-
 </script>
 
 <template>
-  <div class="max-w-2xl mx-auto h-[180px] md:h-[315px] mt-8 ">
+  <div class="h-[220px] w-full md:h-[280px]">
     <Bar :data="chartData" :options="chartOptions" />
   </div>
 </template>
